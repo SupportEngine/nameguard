@@ -3,7 +3,7 @@
 class Nameguard_ext
 {
     public $name = 'NameGuard';
-    public $version = '1.0.0';
+    public $version = '1.1.0';
     public $settings = [];
     public $settings_exist = 'n';
     public $required_by = ['module'];
@@ -32,7 +32,14 @@ class Nameguard_ext
      */
     public function validate_screen_name($member_register)
     {
-        ee()->lang->loadfile('nameguard');
+        // Diagnostic: log that the hook is firing
+        ee()->logger->developer('[NameGuard] validate_screen_name hook fired.');
+
+        try {
+            ee()->lang->loadfile('nameguard');
+        } catch (\Exception $e) {
+            ee()->logger->developer('[NameGuard] Failed to load language file: ' . $e->getMessage());
+        }
 
         $to_check = [];
 
@@ -47,15 +54,34 @@ class Nameguard_ext
             $to_check[] = $username;
         }
 
+        if (empty($to_check)) {
+            ee()->logger->developer('[NameGuard] No screen_name or username to validate.');
+            return;
+        }
+
         foreach ($to_check as $value) {
             $error_message = $this->check_name_suspicious($value);
             if ($error_message !== '') {
+                ee()->logger->developer('[NameGuard] BLOCKED "' . $value . '": ' . $error_message);
                 if (is_object($member_register) && property_exists($member_register, 'errors')) {
                     $member_register->errors[] = $error_message;
                 }
                 return;
             }
         }
+
+        ee()->logger->developer('[NameGuard] Allowed "' . implode('", "', $to_check) . '".');
+    }
+
+    /**
+     * Diagnostic: confirm the registration pipeline is reaching the extension
+     * Hook: member_member_register_start
+     *
+     * @return void
+     */
+    public function on_register_start()
+    {
+        ee()->logger->developer('[NameGuard] member_member_register_start hook fired — registration pipeline active.');
     }
 
     private function get_post_or_property($key, $member_register)
@@ -78,6 +104,7 @@ class Nameguard_ext
             return '';
         }
 
+        // --- Check 1: Mixed case alternation patterns ---
         preg_match_all('/[A-Z]/', $clean, $upper);
         preg_match_all('/[a-z]/', $clean, $lower);
         preg_match_all('/([A-Z][a-z]|[a-z][A-Z])/', $clean, $alts);
@@ -91,15 +118,43 @@ class Nameguard_ext
             }
         }
 
+        // --- Check 2: Excessive uppercase ratio ---
+        // Real names rarely have >50% uppercase letters (e.g. "tOYSuimfISOYLesGFO" = 61%)
+        if ($len >= 6 && $num_upper > 0 && $num_lower > 0) {
+            $upper_ratio = $num_upper / $len;
+            if ($upper_ratio > 0.50) {
+                return $this->lang_message('nameguard_suspicious_name');
+            }
+        }
+
+        // --- Check 3: Low vowel ratio (gibberish) ---
         $vowel_count = preg_match_all('/[aeiou]/i', $clean);
         if ($len >= 10 && $vowel_count < $len * 0.15) {
             return $this->lang_message('nameguard_gibberish_name');
         }
 
+        // --- Check 4: Consonant clusters ---
         preg_match_all('/[^aeiou]{4,}/i', $clean, $clusters);
         $num_clusters = count($clusters[0]);
         if ($num_clusters >= 2 || ($num_clusters >= 1 && $len >= 12)) {
             return $this->lang_message('nameguard_unreadable_name');
+        }
+
+        // --- Check 5: Excessive length with no spaces/separators ---
+        // Legitimate screen names over 14 chars usually have spaces, numbers, or punctuation
+        if ($len >= 14 && $len === strlen($name)) {
+            // Pure letters, very long — check if it looks like a random string
+            // by counting unique bigrams vs expected for real words
+            $lower_clean = strtolower($clean);
+            $bigrams = [];
+            for ($i = 0; $i < $len - 1; $i++) {
+                $bigrams[] = substr($lower_clean, $i, 2);
+            }
+            $unique_ratio = count(array_unique($bigrams)) / count($bigrams);
+            // Random strings have very high unique bigram ratios (>0.85)
+            if ($unique_ratio > 0.85 && $len >= 16) {
+                return $this->lang_message('nameguard_gibberish_name');
+            }
         }
 
         return '';
