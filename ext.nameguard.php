@@ -3,7 +3,7 @@
 class Nameguard_ext
 {
     public $name = 'NameGuard';
-    public $version = '1.1.0';
+    public $version = '1.1.1';
     public $settings = [];
     public $settings_exist = 'n';
     public $required_by = ['module'];
