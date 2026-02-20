@@ -1,4 +1,4 @@
-# NameGuard 1.1 for ExpressionEngine 7
+# NameGuard 1.1.1 for ExpressionEngine 7
 
 Blocks suspicious mixed-case screen names and usernames during member registration. Reduces spam and bot accounts that use random-looking character strings like `bpnUPGwotiovkSgjkowAIa` or `myIbjcHzlhTylOThedq`.
 
