@@ -32,13 +32,13 @@ class Nameguard_ext
      */
     public function validate_screen_name($member_register)
     {
-        // Diagnostic: log that the hook is firing
-        ee()->logger->developer('[NameGuard] validate_screen_name hook fired.');
+        // Diagnostic: log that the hook is firing (use log_message — ee()->logger not always available during registration)
+        $this->log_debug('validate_screen_name hook fired.');
 
         try {
             ee()->lang->loadfile('nameguard');
         } catch (\Exception $e) {
-            ee()->logger->developer('[NameGuard] Failed to load language file: ' . $e->getMessage());
+            $this->log_debug('Failed to load language file: ' . $e->getMessage());
         }
 
         $to_check = [];
@@ -55,14 +55,14 @@ class Nameguard_ext
         }
 
         if (empty($to_check)) {
-            ee()->logger->developer('[NameGuard] No screen_name or username to validate.');
+            $this->log_debug('No screen_name or username to validate.');
             return;
         }
 
         foreach ($to_check as $value) {
             $error_message = $this->check_name_suspicious($value);
             if ($error_message !== '') {
-                ee()->logger->developer('[NameGuard] BLOCKED "' . $value . '": ' . $error_message);
+                $this->log_debug('BLOCKED "' . $value . '": ' . $error_message);
                 if (is_object($member_register) && property_exists($member_register, 'errors')) {
                     $member_register->errors[] = $error_message;
                 }
@@ -70,7 +70,7 @@ class Nameguard_ext
             }
         }
 
-        ee()->logger->developer('[NameGuard] Allowed "' . implode('", "', $to_check) . '".');
+        $this->log_debug('Allowed "' . implode('", "', $to_check) . '".');
     }
 
     /**
@@ -81,7 +81,17 @@ class Nameguard_ext
      */
     public function on_register_start()
     {
-        ee()->logger->developer('[NameGuard] member_member_register_start hook fired — registration pipeline active.');
+        $this->log_debug('member_member_register_start hook fired — registration pipeline active.');
+    }
+
+    /**
+     * Safe debug logging — ee()->logger is not always available during registration
+     * (causes "No such property: logger on Facade" in some contexts).
+     * Uses log_message() which is a global EE function and always available.
+     */
+    private function log_debug($message)
+    {
+        log_message('debug', '[NameGuard] ' . $message);
     }
 
     private function get_post_or_property($key, $member_register)
