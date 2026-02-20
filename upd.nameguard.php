@@ -2,7 +2,7 @@
 
 class Nameguard_upd
 {
-    public $version = '1.1.0';
+    public $version = '1.1.1';
 
     /**
      * Install the add-on
@@ -83,12 +83,11 @@ class Nameguard_upd
                 'version' => $this->version,
                 'enabled' => 'y'
             ]);
-
-            // Update existing hook version
-            ee()->db->where('class', 'Nameguard_ext')
-                ->where('hook', 'member_member_register_errors')
-                ->update('extensions', ['version' => $this->version]);
         }
+
+        // Update all extension hooks to the current version
+        ee()->db->where('class', 'Nameguard_ext')
+            ->update('extensions', ['version' => $this->version]);
 
         return true;
     }
