@@ -63,6 +63,12 @@ class Nameguard_ext
             $error_message = $this->check_name_suspicious($value);
             if ($error_message !== '') {
                 $this->log_debug('BLOCKED "' . $value . '": ' . $error_message);
+                
+                // EE forms might ignore $member_register->errors[]
+                // We force an immediate exit using show_user_error
+                ee()->output->show_user_error('submission', [$error_message]);
+                
+                // Keep for legacy compatibility if execution somehow continues
                 if (is_object($member_register) && property_exists($member_register, 'errors')) {
                     $member_register->errors[] = $error_message;
                 }
